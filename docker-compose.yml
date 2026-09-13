@@ -1,0 +1,25 @@
+services:
+  bwg-panel:
+    build: .
+    image: bwg-panel:latest
+    container_name: bwg-panel
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      TZ: Asia/Shanghai
+      # 生产经宿主机 Caddy 反代（static 网络网关 172.20.0.1）→ 信任其 X-Forwarded-For，
+      # 访问日志与 request.client 显示真实客户端 IP。本地直连开发无需配置（默认仅信任 127.0.0.1）
+      FORWARDED_ALLOW_IPS: 172.20.0.1
+      # 会话签名密钥：建议显式固定（生成：openssl rand -base64 32）。
+      # 留空则首次启动自动生成并写进容器内 .env——容器重建后会话全部失效需重新登录。
+      # SECRET_KEY: <openssl rand -base64 32 的输出>
+      # 首次启动的管理员初始密码；落库后即可删除。留空则自动生成，仅在启动日志打印一次。
+      # ADMIN_PASSWORD: change-me
+      # 反代 HTTPS 部署时改为 "1"：登录 Cookie 仅经 HTTPS 传输
+      # COOKIE_SECURE: "0"
+    volumes:
+      - bwg-data:/data
+
+volumes:
+  bwg-data:

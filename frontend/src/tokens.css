@@ -1,0 +1,65 @@
+/* 设计语言「晨雾浅色」：浅色精致仪表 + 等宽数字。勿引入网络字体（离线约束）。 */
+:root {
+  /* 色彩 */
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface-2: #f8f9fc;
+  --border: #e9ecf2;
+  --border-strong: #d8dce6;
+  --ink: #171a26; --ink-2: #4b5165; --ink-3: #8a90a5;
+
+  --primary: #2e7ef2;
+  --primary-strong: #1f6fe0;
+  --primary-deep: #2a6fdb;
+  --primary-soft: #e8f1fe;
+
+  --ok: #0b7a4f; --ok-bg: #e7f7ef;
+  --warn: #92600a; --warn-strong: #e8930c; --warn-bg: #fdf3e0; --warn-border: #f5e3c0;
+  --danger: #b42318; --danger-bg: #fdecec;
+
+  --dark: #23263b;        /* 深色行动按钮 / Toast 底 */
+  --dark-ink: #ffffff;    /* 深底上的文字 */
+
+  --track: #eef0f6;
+  --ring-track: #dfe9fb;
+
+  /* 圆角阶 */
+  --radius-sm: 8px; --radius-md: 10px; --radius-lg: 12px;
+  --radius-xl: 16px; --radius-2xl: 18px;
+
+  /* 阴影分层 */
+  --shadow-xs: 0 1px 2px rgb(23 26 38 / 0.06);
+  --shadow-sm: 0 1px 2px rgb(23 26 38 / 0.04), 0 4px 12px -4px rgb(23 26 38 / 0.08);
+  --shadow-md: 0 1px 2px rgb(23 26 38 / 0.04), 0 12px 32px -12px rgb(23 26 38 / 0.10);
+  --shadow-lg: 0 24px 48px -12px rgb(23 26 38 / 0.18);
+
+  /* 焦点光环（输入框 / 键盘态） */
+  --focus-ring: 0 0 0 3px rgb(46 126 242 / 0.18);
+
+  /* 字体 */
+  --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --sans: system-ui, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+}
+
+/* 数字一律等宽对齐 —— 仪表感的核心 */
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* 页面底：纯色冷灰（验收期用户决策：无纹理、无渐变） */
+.grid-bg { background: var(--bg); }
+
+/* 状态呼吸灯 */
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.dot-live { animation: breathe 2.4s ease-in-out infinite; }
+
+/* 卡片入场 */
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise 0.35s ease both; }
+.rise-1 { animation-delay: 0.06s; } .rise-2 { animation-delay: 0.12s; }
+
+/* 环形图角度可过渡（@property 注册；不支持的浏览器静态显示） */
+@property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
+
+/* 尊重系统"减少动态效果"设置 */
+@media (prefers-reduced-motion: reduce) {
+  .rise, .dot-live { animation: none; }
+}
