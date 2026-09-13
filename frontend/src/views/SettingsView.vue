@@ -270,7 +270,7 @@ h1 { font-size: 18px; font-weight: 650; margin: 4px 0 16px; }
   box-shadow: var(--shadow-sm); padding: 22px; margin-bottom: 18px;
 }
 h2 { font-size: 14px; font-weight: 650; margin: 0 0 14px; color: var(--ink-2); }
-.panel h2 + h2 { margin-top: 20px; }
+.panel .fields + h2 { margin-top: 20px; } /* 章节间距：字段区块后的标题与上方输入框拉开距离 */
 .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 label { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
 input {
