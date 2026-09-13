@@ -29,8 +29,8 @@ def make_server(state, **profile) -> dict:
     return s
 
 
-def sample(status="running", used=None, throttled=0):
-    return {"status": status, "data_counter": used, "cpu_throttled": throttled}
+def sample(status="running", used=None, throttled=0, **extra):
+    return {"status": status, "data_counter": used, "cpu_throttled": throttled, **extra}
 
 
 @pytest.fixture(autouse=True)
@@ -168,3 +168,58 @@ async def test_collect_error_not_triggered_below_threshold(tmp_path):
     state.consecutive_failures[server["id"]] = 2
     await alerter.check_collect(state, server, ok=False)
     assert models.list_alerts(state.db, active_only=True) == []
+
+
+# ---------- disk_high / mem_high ----------
+
+async def test_disk_high_trigger_and_hysteresis_resolve(tmp_path):
+    """≥90% 触发；回落到滞回带内（85%–90%）不恢复；<85% 才恢复（防横跳刷邮件）。"""
+    state = make_state(tmp_path)
+    server = make_server(state)
+    quota = 100 * 1024**3  # 100 GiB：used GiB 数即百分比
+
+    await alerter.check_server(state, server,
+                               sample(disk_used_b=91 * 1024**3, disk_quota_b=quota), now=1000.0)
+    act = models.active_alert(state.db, server["id"], "disk_high")
+    assert act and "磁盘" in act["message"] and "91.0%" in act["message"]
+
+    await alerter.check_server(state, server,
+                               sample(disk_used_b=88 * 1024**3, disk_quota_b=quota), now=1100.0)
+    assert models.active_alert(state.db, server["id"], "disk_high")  # 滞回带内不恢复
+
+    await alerter.check_server(state, server,
+                               sample(disk_used_b=84 * 1024**3, disk_quota_b=quota), now=1200.0)
+    assert models.active_alert(state.db, server["id"], "disk_high") is None
+
+
+async def test_mem_high_trigger_with_custom_threshold(tmp_path):
+    state = make_state(tmp_path)
+    models.set_setting(state.db, "threshold_mem", 0.8)
+    server = make_server(state)
+    total_kb = 1024 * 1024  # 1 GiB
+
+    await alerter.check_server(state, server,
+                               sample(mem_available_kb=int(total_kb * 0.15), mem_total_kb=total_kb),
+                               now=1000.0)
+    act = models.active_alert(state.db, server["id"], "mem_high")
+    assert act and "内存" in act["message"] and "85.0%" in act["message"]
+
+
+async def test_disk_mem_missing_data_skipped(tmp_path):
+    """缺 disk_quota_b / mem_total_kb（档案未刷新或旧样本）→ 跳过不触发。"""
+    state = make_state(tmp_path)
+    server = make_server(state)
+    await alerter.check_server(state, server,
+                               sample(disk_used_b=999, mem_available_kb=1), now=1000.0)
+    assert models.list_alerts(state.db, active_only=True) == []
+
+
+async def test_disk_high_no_duplicate_while_active(tmp_path):
+    state = make_state(tmp_path)
+    server = make_server(state)
+    quota = 100 * 1024**3
+    s = sample(disk_used_b=95 * 1024**3, disk_quota_b=quota)
+    await alerter.check_server(state, server, s, now=1000.0)
+    await alerter.check_server(state, server, s, now=1100.0)
+    rows = [r for r in models.list_alerts(state.db) if r["type"] == "disk_high"]
+    assert len(rows) == 1  # 活动期内重复超标不重复告警

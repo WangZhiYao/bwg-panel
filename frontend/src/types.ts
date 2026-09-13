@@ -38,7 +38,7 @@ export interface Snapshot {
   size: number | null
 }
 
-export type AlertType = 'offline' | 'traffic_warn' | 'traffic_critical' | 'cpu_throttle' | 'collect_error' | 'email_error'
+export type AlertType = 'offline' | 'traffic_warn' | 'traffic_critical' | 'disk_high' | 'mem_high' | 'cpu_throttle' | 'collect_error' | 'email_error'
 
 export interface AlertRow {
   id: number
@@ -60,6 +60,8 @@ export interface PanelSettings {
   smtp_to: string[]
   threshold_warn: number
   threshold_critical: number
+  threshold_disk: number
+  threshold_mem: number
   sample_interval_seconds: number
   timezone: string
   smtp_pass_set: boolean  // 只读派生态：是否已存密码（密码本身永不回传）

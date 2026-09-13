@@ -74,6 +74,8 @@ const ALERT_TYPE_LABELS: Record<string, string> = {
   offline: '掉线',
   traffic_warn: '流量预警',
   traffic_critical: '流量超限预警',
+  disk_high: '磁盘空间告警',
+  mem_high: '内存告警',
   cpu_throttle: 'CPU 节流',
   collect_error: '采集失败',
   email_error: '邮件通道故障',

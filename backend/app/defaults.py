@@ -8,6 +8,8 @@ DEFAULTS: dict = {
     "smtp_to": [],         # list[str]
     "threshold_warn": 0.8,
     "threshold_critical": 0.95,
+    "threshold_disk": 0.9,  # 磁盘/内存单级占比告警（触发 ≥ t，恢复 < t-5pp 滞回）
+    "threshold_mem": 0.9,
     "sample_interval_seconds": 300,
     "timezone": "Asia/Shanghai",
 }

@@ -17,11 +17,14 @@ logger = logging.getLogger(__name__)
 OFFLINE_DEBOUNCE_SECONDS = 300     # 掉线持续 5 分钟才告警（重启窗口不误报）
 THROTTLE_SUPPRESS_SECONDS = 7200   # cpu_throttle 官方约 2 小时自动重置：窗口内不重复
 COLLECT_ERROR_THRESHOLD = 3        # 连续 3 轮采集失败（≈15 分钟）
+DISK_MEM_HYSTERESIS = 0.05         # 磁盘/内存恢复阈值比触发低 5pp：占比会在阈值附近横跳刷邮件
 
 TYPE_LABELS = {
     "offline": "掉线",
     "traffic_warn": "流量预警",
     "traffic_critical": "流量超限预警",
+    "disk_high": "磁盘空间告警",
+    "mem_high": "内存告警",
     "cpu_throttle": "CPU 节流",
     "collect_error": "采集失败",
     "email_error": "邮件通道故障",
@@ -57,7 +60,7 @@ def _human_bytes(n: float) -> str:
 
 
 async def check_server(state, server: dict, sample: dict, *, now: float | None = None) -> None:
-    """采样成功后的检查：offline / traffic_warn / traffic_critical / cpu_throttle。"""
+    """采样成功后的检查：offline / traffic_* / disk_high / mem_high / cpu_throttle。"""
     now = time.time() if now is None else now
     sid = server["id"]
     status = sample["status"]
@@ -86,8 +89,50 @@ async def check_server(state, server: dict, sample: dict, *, now: float | None =
     if used is not None and quota > 0:
         await _check_traffic(state, server, used / quota, used, quota)
 
+    await _check_disk_mem(state, server, sample)
+
     if sample["cpu_throttled"]:
         await _check_throttle(state, server, now=now)
+
+
+def _disk_probe(sample: dict) -> tuple[float, str] | None:
+    """(占比, 人话详情)；字段缺失（None/0 哨兵）返回 None 跳过检查。"""
+    used, quota = sample.get("disk_used_b"), sample.get("disk_quota_b")
+    if not used or not quota:
+        return None
+    return used / quota, f"磁盘已用 {_human_bytes(used)} / {_human_bytes(quota)}"
+
+
+def _mem_probe(sample: dict) -> tuple[float, str] | None:
+    avail, total = sample.get("mem_available_kb"), sample.get("mem_total_kb")
+    if avail is None or not total:
+        return None
+    used = total - avail
+    return used / total, f"内存已用 {_human_bytes(used * 1024)} / {_human_bytes(total * 1024)}"
+
+
+async def _check_disk_mem(state, server: dict, sample: dict) -> None:
+    """磁盘/内存占比单级告警：≥ 阈值触发，< 阈值−5pp 恢复（滞回防横跳刷邮件）。
+
+    与流量告警的差异：流量月内单调递增天然不抖；内存/磁盘占比会在阈值附近
+    来回横跳，无滞回会交替发触发/恢复邮件。
+    """
+    for type_, key, probe in (
+        ("disk_high", "threshold_disk", _disk_probe),
+        ("mem_high", "threshold_mem", _mem_probe),
+    ):
+        probed = probe(sample)
+        if probed is None:
+            continue
+        ratio, detail = probed
+        threshold = float(models.get_setting(state.db, key, DEFAULTS[key]))
+        act = models.active_alert(state.db, server["id"], type_)
+        if ratio >= threshold and act is None:
+            await _trigger(state, server, type_,
+                           f"服务器 {server['name']} {detail}，占比 {ratio * 100:.1f}%"
+                           f" 已达阈值 {threshold * 100:.0f}%")
+        elif ratio < threshold - DISK_MEM_HYSTERESIS and act is not None:
+            await _resolve(state, server, act)
 
 
 async def _check_traffic(state, server: dict, ratio: float, used: int, quota: int) -> None:

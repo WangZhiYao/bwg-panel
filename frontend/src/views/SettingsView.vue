@@ -25,6 +25,8 @@ const form = reactive({
   smtp_to: '',              // 逗号分隔输入
   threshold_warn: 80,       // 界面百分比，提交转小数
   threshold_critical: 95,
+  threshold_disk: 90,
+  threshold_mem: 90,
   sample_interval_seconds: 300,
   timezone: 'Asia/Shanghai',
 })
@@ -37,6 +39,8 @@ function fillForm(s: PanelSettings) {
   form.smtp_to = s.smtp_to.join(', ')
   form.threshold_warn = Math.round(s.threshold_warn * 100)
   form.threshold_critical = Math.round(s.threshold_critical * 100)
+  form.threshold_disk = Math.round(s.threshold_disk * 100)
+  form.threshold_mem = Math.round(s.threshold_mem * 100)
   form.sample_interval_seconds = s.sample_interval_seconds
   form.timezone = s.timezone
   passSet.value = s.smtp_pass_set
@@ -71,6 +75,8 @@ async function save(): Promise<boolean> {
       smtp_to: form.smtp_to.split(/[,，]/).map((x) => x.trim()).filter(Boolean),
       threshold_warn: form.threshold_warn / 100,
       threshold_critical: form.threshold_critical / 100,
+      threshold_disk: form.threshold_disk / 100,
+      threshold_mem: form.threshold_mem / 100,
       sample_interval_seconds: form.sample_interval_seconds,
       timezone: form.timezone.trim(),
     })
@@ -188,6 +194,8 @@ async function doDelete() {
           <div class="fields">
             <label>流量预警阈值（%）<input v-model.number="form.threshold_warn" type="number" min="1" max="99" aria-label="预警阈值%" required></label>
             <label>流量超限阈值（%）<input v-model.number="form.threshold_critical" type="number" min="2" max="99" aria-label="超限阈值%" required></label>
+            <label>磁盘告警阈值（%）<input v-model.number="form.threshold_disk" type="number" min="50" max="99" aria-label="磁盘阈值%" required></label>
+            <label>内存告警阈值（%）<input v-model.number="form.threshold_mem" type="number" min="50" max="99" aria-label="内存阈值%" required></label>
             <label>采样间隔（秒，60–3600）<input v-model.number="form.sample_interval_seconds" type="number" min="60" max="3600" step="10" aria-label="采样间隔秒" required></label>
             <label>时区（日耗分桶）<input v-model="form.timezone" placeholder="Asia/Shanghai" aria-label="时区" required></label>
           </div>

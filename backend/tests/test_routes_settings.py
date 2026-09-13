@@ -94,6 +94,24 @@ def test_put_settings_port_upper_bound_and_edge_cases(client):
     assert (r2.json()["threshold_warn"], r2.json()["threshold_critical"]) == (0.7, 0.9)
 
 
+def test_get_settings_includes_disk_mem_thresholds(client):
+    login(client)
+    body = client.get("/api/settings").json()
+    assert body["threshold_disk"] == 0.9
+    assert body["threshold_mem"] == 0.9
+
+
+def test_put_settings_disk_mem_threshold_validation(client):
+    """磁盘/内存阈值合法区间 0.5–0.99（50%–99%）。"""
+    login(client)
+    for bad in (0.4, 1.0):
+        assert client.put("/api/settings", json={"threshold_disk": bad}).json()["error"] == "invalid_threshold"
+        assert client.put("/api/settings", json={"threshold_mem": bad}).json()["error"] == "invalid_threshold"
+    r = client.put("/api/settings", json={"threshold_disk": 0.5, "threshold_mem": 0.95})
+    assert r.status_code == 200
+    assert (r.json()["threshold_disk"], r.json()["threshold_mem"]) == (0.5, 0.95)
+
+
 def test_interval_change_reschedules_sampler(client):
     login(client)
     state = client.app.state.state

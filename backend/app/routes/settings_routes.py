@@ -27,6 +27,8 @@ class SettingsBody(BaseModel):
     smtp_to: list[str] | None = None
     threshold_warn: float | None = None
     threshold_critical: float | None = None
+    threshold_disk: float | None = None
+    threshold_mem: float | None = None
     sample_interval_seconds: int | None = None
     timezone: str | None = None
 
@@ -60,6 +62,13 @@ async def put_settings(body: SettingsBody, state: AppState = Depends(get_state))
         raise HTTPException(400, detail={
             "error": "invalid_threshold",
             "message": "阈值需满足 0 < 预警 < 超限 < 1（如 0.8 与 0.95）"})
+
+    for key in ("threshold_disk", "threshold_mem"):
+        v = updates.get(key)
+        if v is not None and not 0.5 <= v <= 0.99:
+            raise HTTPException(400, detail={
+                "error": "invalid_threshold",
+                "message": "磁盘/内存阈值需在 50%–99% 之间"})
 
     interval = updates.get("sample_interval_seconds")
     if interval is not None and not 60 <= interval <= 3600:

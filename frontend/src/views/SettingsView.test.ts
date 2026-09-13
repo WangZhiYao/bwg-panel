@@ -22,6 +22,7 @@ const settings: PanelSettings = {
   smtp_host: 'smtp.example.com', smtp_port: 465, smtp_user: 'panel@x.com',
   smtp_from: '', smtp_to: ['a@x.com', 'b@x.com'],
   threshold_warn: 0.8, threshold_critical: 0.95,
+  threshold_disk: 0.9, threshold_mem: 0.92,
   sample_interval_seconds: 300, timezone: 'Asia/Shanghai',
   smtp_pass_set: false,
 }
@@ -60,6 +61,8 @@ describe('SettingsView', () => {
     await vi.waitFor(() => expect((input(w, 'SMTP 主机').element as HTMLInputElement).value).toBe('smtp.example.com'))
     expect((input(w, '收件人').element as HTMLInputElement).value).toBe('a@x.com, b@x.com')
     expect((input(w, '预警阈值%').element as HTMLInputElement).value).toBe('80')
+    expect((input(w, '磁盘阈值%').element as HTMLInputElement).value).toBe('90')
+    expect((input(w, '内存阈值%').element as HTMLInputElement).value).toBe('92')
     expect(w.text()).toContain('东京机')
     expect(w.text()).toContain('9000001')
   })
@@ -71,6 +74,8 @@ describe('SettingsView', () => {
     await vi.waitFor(() => expect(putSettings).toHaveBeenCalled())
     const body = vi.mocked(putSettings).mock.calls[0][0]
     expect(body.threshold_warn).toBe(0.8)
+    expect(body.threshold_disk).toBe(0.9)
+    expect(body.threshold_mem).toBe(0.92)
     expect(body.threshold_critical).toBe(0.95)
     expect(body.smtp_to).toEqual(['a@x.com', 'b@x.com'])
     expect(body.smtp_pass).toBeUndefined()
