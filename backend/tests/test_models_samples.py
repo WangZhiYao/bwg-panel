@@ -53,9 +53,9 @@ def test_daily_usage_sums_positive_diffs_per_day(tmp_path):
         (base + timedelta(hours=0), 0),
         (base + timedelta(hours=12), 100),
         (base + timedelta(hours=23), 250),
-        (base + timedelta(days=1, hours=1), 400),   # 次日：+150
-        (base + timedelta(days=1, hours=6), 100),   # 计数器回落（月重置）：diff 为负 → 忽略
-        (base + timedelta(days=1, hours=12), 180),  # +80
+        (base + timedelta(days=1, hours=1), 400),   # 次日：+150（重置日，旧周期尾巴）
+        (base + timedelta(days=1, hours=6), 100),   # 计数器回落（月重置）：当日旧周期用量清零
+        (base + timedelta(days=1, hours=12), 180),  # +80，从新基线重新起算
     ]
     for ts, counter in points:
         models.insert_sample(
@@ -65,7 +65,34 @@ def test_daily_usage_sums_positive_diffs_per_day(tmp_path):
     daily = models.daily_usage(db, 1, base.isoformat())
     assert daily == [
         {"date": "2026-09-01", "bytes": 250},
-        {"date": "2026-09-02", "bytes": 230},
+        {"date": "2026-09-02", "bytes": 80},  # 重置当日只计新周期用量
+    ]
+    db.close()
+
+
+def test_daily_usage_reset_day_drops_old_cycle_usage(tmp_path):
+    """生产回归（2026-09-15 DC9）：重置点横跨日中时，重置日不得混入旧周期用量。
+
+    北京日 09-15 内：00:00–15:51 旧周期涨到 661GB，15:51 重置归零后涨到 10GB
+    → 09-15 桶只应是新周期的 10GB；前一日桶保持完整不受影响。
+    """
+    db = make_db(tmp_path)
+    models.create_server(db, name="A", veid="1", api_key="k")
+    # UTC 时刻（Asia/Shanghai = UTC+8）：09-14 16:00 = 北京 09-15 00:00
+    points = [
+        ("2026-09-14T08:00:00+00:00", 616_000_000_000),  # 北京 09-14 16:00：基线
+        ("2026-09-14T15:55:00+00:00", 617_000_000_000),  # 北京 09-14 23:55：+1G → 09-14 桶
+        ("2026-09-14T16:05:00+00:00", 618_000_000_000),  # 北京 09-15 00:05：+1G → 09-15 桶（旧周期）
+        ("2026-09-15T07:48:00+00:00", 661_000_000_000),  # 北京 09-15 15:48：+43G（旧周期尾巴）
+        ("2026-09-15T07:53:00+00:00", 65_000_000),       # 北京 09-15 15:53：重置归零，清掉 09-15 桶
+        ("2026-09-15T14:00:00+00:00", 10_000_000_000),   # 北京 09-15 22:00：新周期 +10G
+    ]
+    for ts, counter in points:
+        models.insert_sample(db, server_id=1, ts=ts, status="running", data_counter=counter)
+    daily = models.daily_usage(db, 1, "2026-09-14T00:00:00+00:00", "Asia/Shanghai")
+    assert [(d["date"], d["bytes"]) for d in daily] == [
+        ("2026-09-14", 1_000_000_000),     # 09-14 完整日不受重置影响
+        ("2026-09-15", 10_000_000_000 - 65_000_000),  # 只计新周期
     ]
     db.close()
 

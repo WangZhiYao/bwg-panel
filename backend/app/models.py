@@ -199,7 +199,11 @@ def samples_since(db, server_id: int, since_ts: str) -> list[dict]:
 
 
 def daily_usage(db, server_id: int, since_ts: str, tz_name: str = "UTC") -> list[dict]:
-    """相邻采样 data_counter 的正向差值，按指定时区的日历日分桶求和（M4：用户时区）。"""
+    """相邻采样 data_counter 的正向差值，按指定时区的日历日分桶求和（M4：用户时区）。
+
+    计数器回落＝月度重置：重置当日的旧周期用量无法按日完整归属
+    （会造成"新周期已开始、今日用量却仍带旧周期尾巴"），故重置日只计新周期用量。
+    """
     tzinfo = ZoneInfo(tz_name)
     per_day: dict[str, int] = {}
     prev: dict | None = None
@@ -210,8 +214,10 @@ def daily_usage(db, server_id: int, since_ts: str, tz_name: str = "UTC") -> list
             and prev["data_counter"] is not None
         ):
             diff = row["data_counter"] - prev["data_counter"]
-            if diff > 0:
-                day = datetime.fromisoformat(row["ts"]).astimezone(tzinfo).date().isoformat()
+            day = datetime.fromisoformat(row["ts"]).astimezone(tzinfo).date().isoformat()
+            if diff < 0:
+                per_day.pop(day, None)  # 新周期开始：清掉该日已累计的旧周期用量
+            elif diff > 0:
                 per_day[day] = per_day.get(day, 0) + diff
         prev = row
     return [{"date": d, "bytes": b} for d, b in sorted(per_day.items())]
